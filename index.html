@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Girlfriend IT — Ticket Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎀</text></svg>">
+<style>
+  :root{
+    --pink-50:#fff5fa;
+    --pink-100:#ffe6f1;
+    --pink-200:#ffcde2;
+    --pink-300:#ffa6cd;
+    --pink-400:#ff7eb6;
+    --pink-500:#ff5aa0;
+    --pink-700:#c43f7c;
+    --lav-100:#f3ecff;
+    --lav-300:#c9b6ff;
+    --mint-200:#c8f5e1;
+    --peach-200:#ffd9c2;
+    --cream:#fffaf2;
+    --ink:#5a3a52;
+    --shadow:0 8px 24px rgba(255,90,160,.18);
+    --shadow-lg:0 12px 36px rgba(255,90,160,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Fredoka',system-ui,-apple-system,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 10% 10%, #ffd9ec 0, transparent 40%),
+      radial-gradient(circle at 90% 0%, #e0d4ff 0, transparent 35%),
+      radial-gradient(circle at 80% 90%, #fff0c9 0, transparent 40%),
+      linear-gradient(180deg, #fff5fa 0%, #ffeaf4 100%);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  .sparkles{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  .sparkle{position:absolute;font-size:18px;opacity:.55;animation:float 8s ease-in-out infinite}
+  @keyframes float{
+    0%,100%{transform:translateY(0) rotate(0)}
+    50%{transform:translateY(-18px) rotate(12deg)}
+  }
+  .wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:32px 22px 80px}
+  header.hero{
+    text-align:center;
+    margin-bottom:28px;
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;
+    background:white;border-radius:999px;padding:6px 14px;
+    box-shadow:var(--shadow);font-weight:500;font-size:13px;
+    color:var(--pink-700);letter-spacing:.4px;text-transform:uppercase;
+  }
+  .badge .dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.25);animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(74,222,128,0)}}
+  h1{
+    font-family:'Caveat',cursive;
+    font-size:64px;
+    margin:14px 0 4px;
+    color:var(--pink-500);
+    text-shadow:2px 2px 0 #fff, 4px 4px 0 var(--pink-200);
+    line-height:1;
+  }
+  h1 .heart{display:inline-block;animation:beat 1.4s ease-in-out infinite;color:#ff4b8a}
+  @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+  .tagline{
+    font-family:'Caveat',cursive;
+    font-size:22px;color:var(--pink-700);opacity:.85;margin-top:0
+  }
+
+  .kpis{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 18px
+  }
+  .kpi{
+    background:white;border-radius:18px;padding:14px 16px;box-shadow:var(--shadow);
+    display:flex;align-items:center;gap:12px;
+  }
+  .kpi .ico{font-size:22px}
+  .kpi .num{font-size:24px;font-weight:700;line-height:1}
+  .kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;opacity:.7}
+  @media (max-width:680px){.kpis{grid-template-columns:repeat(2,1fr)}}
+
+  .composer{
+    background:white;border-radius:24px;padding:18px;box-shadow:var(--shadow-lg);
+    border:2px dashed var(--pink-200);
+  }
+  .composer h2{margin:0 0 12px;font-size:18px;display:flex;align-items:center;gap:8px}
+  .row{display:grid;grid-template-columns:1.6fr .9fr .7fr auto;gap:10px;align-items:center}
+  @media (max-width:780px){.row{grid-template-columns:1fr 1fr;}}
+  input[type="text"], select{
+    font:inherit;width:100%;padding:12px 14px;border-radius:14px;border:2px solid var(--pink-100);
+    background:var(--pink-50);color:var(--ink);outline:none;transition:.15s;
+  }
+  input[type="text"]:focus, select:focus{border-color:var(--pink-300);background:white;box-shadow:0 0 0 4px rgba(255,166,205,.25)}
+  button.add{
+    font:inherit;font-weight:600;padding:12px 18px;border-radius:14px;border:0;cursor:pointer;
+    background:linear-gradient(135deg, var(--pink-400), var(--pink-500));color:white;
+    box-shadow:0 6px 16px rgba(255,90,160,.4);transition:transform .1s, box-shadow .15s;
+  }
+  button.add:hover{transform:translateY(-1px);box-shadow:0 9px 22px rgba(255,90,160,.5)}
+  button.add:active{transform:translateY(1px)}
+
+  .toolbar{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    margin:22px 0 12px;flex-wrap:wrap;
+  }
+  .filters{display:flex;gap:6px;background:white;padding:6px;border-radius:999px;box-shadow:var(--shadow)}
+  .chip{
+    padding:8px 14px;border-radius:999px;cursor:pointer;font-weight:500;font-size:13px;
+    border:0;background:transparent;color:var(--ink);
+  }
+  .chip.active{background:linear-gradient(135deg,var(--pink-300),var(--pink-400));color:white}
+  .right-tools{display:flex;gap:8px;align-items:center}
+  .ghost{
+    background:white;border:2px solid var(--pink-100);color:var(--pink-700);
+    padding:8px 14px;border-radius:999px;cursor:pointer;font:inherit;font-size:13px;font-weight:500
+  }
+  .ghost:hover{border-color:var(--pink-300)}
+
+  .tickets{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:6px}
+  .ticket{
+    background:white;border-radius:20px;padding:16px;box-shadow:var(--shadow);
+    border-left:6px solid var(--pink-300);position:relative;transition:transform .15s, box-shadow .15s;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .ticket:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+  .ticket.done{opacity:.62;border-left-color:#9ee2bd;background:linear-gradient(180deg,#f7fff9,white)}
+  .ticket.done .title{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#5cd49a}
+  .ticket.p0{border-left-color:#ff4b6e}
+  .ticket.p1{border-left-color:#ff8a3d}
+  .ticket.p2{border-left-color:#ffce4a}
+  .ticket.p3{border-left-color:#a3d8ff}
+  .t-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .id{
+    font-family:'Fredoka',monospace;font-size:11px;font-weight:600;letter-spacing:.6px;
+    background:var(--pink-100);color:var(--pink-700);padding:3px 8px;border-radius:999px;
+  }
+  .title{font-size:17px;font-weight:600;line-height:1.25;margin:0;flex:1}
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{
+    font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;
+    padding:4px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;
+  }
+  .pill.cat{background:var(--lav-100);color:#6c4fb8}
+  .pill.prio.p0{background:#ffe1e7;color:#c2243f}
+  .pill.prio.p1{background:#ffe9d6;color:#a24f0f}
+  .pill.prio.p2{background:#fff4cf;color:#8a6a0a}
+  .pill.prio.p3{background:#dff0ff;color:#1f5b8a}
+  .pill.status{background:#ececff;color:#4a4ab2}
+  .pill.status.in-progress{background:var(--peach-200);color:#a04617}
+  .pill.status.resolved{background:var(--mint-200);color:#1f7a4d}
+  .meta{font-size:12px;opacity:.65;display:flex;justify-content:space-between;align-items:center}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+  .actions button{
+    font:inherit;font-size:12px;font-weight:500;padding:6px 10px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--pink-100);background:var(--pink-50);color:var(--pink-700);
+  }
+  .actions button:hover{background:var(--pink-100)}
+  .actions button.del{color:#c33;border-color:#fad}
+  .actions button.del:hover{background:#fde3e3}
+  .actions button.primary{background:var(--pink-400);color:white;border-color:var(--pink-400)}
+  .actions button.primary:hover{background:var(--pink-500)}
+
+  .empty{
+    text-align:center;background:white;border-radius:24px;padding:42px 20px;box-shadow:var(--shadow);
+    grid-column:1/-1;
+  }
+  .empty .big{font-size:48px}
+  .empty p{margin:8px 0 0;font-family:'Caveat',cursive;font-size:24px;color:var(--pink-700)}
+
+  footer{
+    text-align:center;margin-top:42px;font-size:13px;opacity:.7;font-family:'Caveat',cursive;font-size:18px
+  }
+
+  /* Confetti burst */
+  .confetti{position:fixed;font-size:18px;pointer-events:none;z-index:9999;animation:fall 1.4s ease-out forwards}
+  @keyframes fall{
+    0%{opacity:1;transform:translate(0,0) rotate(0)}
+    100%{opacity:0;transform:translate(var(--dx),140px) rotate(540deg)}
+  }
+</style>
+</head>
+<body>
+<div class="sparkles" id="sparkles"></div>
+<div class="wrap">
+  <header class="hero">
+    <div class="badge"><span class="dot"></span>Boyfriend Support — Tier 1</div>
+    <h1>Girlfriend IT <span class="heart">♥</span></h1>
+    <p class="tagline">your one-stop ticket queue for love & logistics ✿</p>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi"><div class="ico">🎫</div><div><div class="num" id="kpi-open">0</div><div class="lbl">Open</div></div></div>
+    <div class="kpi"><div class="ico">⚡</div><div><div class="num" id="kpi-progress">0</div><div class="lbl">In Progress</div></div></div>
+    <div class="kpi"><div class="ico">✅</div><div><div class="num" id="kpi-done">0</div><div class="lbl">Resolved</div></div></div>
+    <div class="kpi"><div class="ico">💖</div><div><div class="num" id="kpi-love">100%</div><div class="lbl">Love SLA</div></div></div>
+  </section>
+
+  <section class="composer">
+    <h2>📝 Submit a new ticket</h2>
+    <form class="row" id="composer">
+      <input type="text" id="title" placeholder="e.g. Refill papaya supply 🥭" required maxlength="120" />
+      <select id="category">
+        <option value="🛠️ Repairs">🛠️ Repairs</option>
+        <option value="💆 Affection">💆 Affection</option>
+        <option value="🐶 Doggo">🐶 Doggo</option>
+        <option value="🍽️ Snacks">🍽️ Snacks</option>
+        <option value="🧹 Chores">🧹 Chores</option>
+        <option value="💝 Surprise">💝 Surprise</option>
+        <option value="🎀 Other">🎀 Other</option>
+      </select>
+      <select id="priority">
+        <option value="P0">P0 — Critical 🚨</option>
+        <option value="P1" selected>P1 — High 🔥</option>
+        <option value="P2">P2 — Medium 🌸</option>
+        <option value="P3">P3 — Low 💭</option>
+      </select>
+      <button class="add" type="submit">Open Ticket ✨</button>
+    </form>
+  </section>
+
+  <div class="toolbar">
+    <div class="filters" id="filters">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="open">Open</button>
+      <button class="chip" data-filter="in-progress">In Progress</button>
+      <button class="chip" data-filter="resolved">Resolved</button>
+    </div>
+    <div class="right-tools">
+      <button class="ghost" id="seedBtn" title="Reset to demo tickets">🌱 Seed Demo</button>
+      <button class="ghost" id="clearDoneBtn">🧺 Clear Resolved</button>
+    </div>
+  </div>
+
+  <section class="tickets" id="tickets"></section>
+
+  <footer>made with ♥ — your devoted on-call engineer</footer>
+</div>
+
+<script>
+const STORAGE_KEY = 'gfit.tickets.v1';
+const COUNTER_KEY = 'gfit.counter.v1';
+const FILTER_KEY  = 'gfit.filter.v1';
+
+const SEED = [
+  { title: "Fix the TV (HDMI input keeps switching)", category: "🛠️ Repairs", priority: "P1" },
+  { title: "Rub her feet (post-walk recovery)",       category: "💆 Affection", priority: "P0" },
+  { title: "Take the dog on a walk",                  category: "🐶 Doggo",    priority: "P1" },
+  { title: "Eat a papaya 🥭 (stay vitamin'd up)",     category: "🍽️ Snacks",   priority: "P2" },
+];
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+
+let state = {
+  tickets: load(),
+  counter: parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10),
+  filter: localStorage.getItem(FILTER_KEY) || 'all',
+};
+
+if (state.tickets.length === 0) seed();
+
+function load(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.tickets));
+  localStorage.setItem(COUNTER_KEY, String(state.counter));
+  localStorage.setItem(FILTER_KEY, state.filter);
+}
+function nextId(){ state.counter += 1; return 'GF-' + String(state.counter).padStart(4,'0'); }
+function fmtDate(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+}
+
+function seed(){
+  state.tickets = [];
+  state.counter = 0;
+  for (const s of SEED){
+    state.tickets.push({
+      id: nextId(),
+      title: s.title,
+      category: s.category,
+      priority: s.priority,
+      status: 'open',
+      createdAt: Date.now() - Math.floor(Math.random()*86400000*3),
+    });
+  }
+  save();
+}
+
+function addTicket(title, category, priority){
+  state.tickets.unshift({
+    id: nextId(),
+    title, category, priority,
+    status: 'open',
+    createdAt: Date.now(),
+  });
+  save();
+}
+
+function setStatus(id, status){
+  const t = state.tickets.find(x=>x.id===id);
+  if (!t) return;
+  t.status = status;
+  save();
+  if (status === 'resolved') confettiBurst();
+}
+
+function delTicket(id){
+  state.tickets = state.tickets.filter(x=>x.id!==id);
+  save();
+}
+
+function clearResolved(){
+  state.tickets = state.tickets.filter(x=>x.status!=='resolved');
+  save();
+}
+
+function render(){
+  // KPIs
+  const open = state.tickets.filter(t=>t.status==='open').length;
+  const prog = state.tickets.filter(t=>t.status==='in-progress').length;
+  const done = state.tickets.filter(t=>t.status==='resolved').length;
+  $('#kpi-open').textContent = open;
+  $('#kpi-progress').textContent = prog;
+  $('#kpi-done').textContent = done;
+
+  // Filter chips
+  $$('#filters .chip').forEach(c=>{
+    c.classList.toggle('active', c.dataset.filter === state.filter);
+  });
+
+  // Tickets
+  const cont = $('#tickets');
+  cont.innerHTML = '';
+  const view = state.tickets.filter(t=>{
+    if (state.filter === 'all') return true;
+    return t.status === state.filter;
+  });
+
+  if (view.length === 0){
+    cont.innerHTML = `<div class="empty">
+      <div class="big">🌷</div>
+      <p>No tickets here — you're caught up, sweet thing.</p>
+    </div>`;
+    return;
+  }
+
+  // Sort: open first by priority, then in-progress, then resolved (newest first within group)
+  const order = { 'open':0, 'in-progress':1, 'resolved':2 };
+  const prio = { 'P0':0, 'P1':1, 'P2':2, 'P3':3 };
+  view.sort((a,b)=>{
+    if (order[a.status] !== order[b.status]) return order[a.status]-order[b.status];
+    if (prio[a.priority] !== prio[b.priority]) return prio[a.priority]-prio[b.priority];
+    return b.createdAt - a.createdAt;
+  });
+
+  for (const t of view){
+    const el = document.createElement('article');
+    el.className = `ticket ${t.priority.toLowerCase()} ${t.status==='resolved'?'done':''}`;
+    el.innerHTML = `
+      <div class="t-head">
+        <h3 class="title">${escapeHtml(t.title)}</h3>
+        <span class="id">${t.id}</span>
+      </div>
+      <div class="pills">
+        <span class="pill cat">${escapeHtml(t.category)}</span>
+        <span class="pill prio ${t.priority.toLowerCase()}">${t.priority}</span>
+        <span class="pill status ${t.status}">${labelStatus(t.status)}</span>
+      </div>
+      <div class="meta">
+        <span>opened ${fmtDate(t.createdAt)}</span>
+      </div>
+      <div class="actions">
+        ${actionsFor(t)}
+        <button class="del" data-act="del" data-id="${t.id}">🗑️ Delete</button>
+      </div>
+    `;
+    cont.appendChild(el);
+  }
+
+  cont.querySelectorAll('button[data-act]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = b.dataset.id;
+      const act = b.dataset.act;
+      if (act==='del'){ delTicket(id); render(); }
+      else if (act==='start'){ setStatus(id,'in-progress'); render(); }
+      else if (act==='resolve'){ setStatus(id,'resolved'); render(); }
+      else if (act==='reopen'){ setStatus(id,'open'); render(); }
+    });
+  });
+}
+
+function actionsFor(t){
+  if (t.status==='open') return `
+    <button data-act="start" data-id="${t.id}">⚡ Start</button>
+    <button class="primary" data-act="resolve" data-id="${t.id}">✅ Resolve</button>`;
+  if (t.status==='in-progress') return `
+    <button class="primary" data-act="resolve" data-id="${t.id}">✅ Resolve</button>
+    <button data-act="reopen" data-id="${t.id}">↩︎ Reopen</button>`;
+  return `<button data-act="reopen" data-id="${t.id}">↩︎ Reopen</button>`;
+}
+
+function labelStatus(s){
+  return s==='open'?'Open':s==='in-progress'?'In Progress':'Resolved';
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function confettiBurst(){
+  const emojis = ['💖','✨','🌸','🎀','💕','🌷','💐','⭐'];
+  for (let i=0;i<22;i++){
+    const span = document.createElement('span');
+    span.className = 'confetti';
+    span.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    span.style.left = (50 + (Math.random()-.5)*40) + '%';
+    span.style.top = (20 + Math.random()*30) + '%';
+    span.style.setProperty('--dx', (Math.random()*400-200) + 'px');
+    document.body.appendChild(span);
+    setTimeout(()=>span.remove(), 1500);
+  }
+}
+
+function spawnSparkles(){
+  const c = $('#sparkles');
+  const items = ['✿','✦','✧','♡','✩','❀'];
+  for (let i=0;i<14;i++){
+    const s = document.createElement('span');
+    s.className = 'sparkle';
+    s.textContent = items[Math.floor(Math.random()*items.length)];
+    s.style.left = Math.random()*100 + '%';
+    s.style.top = Math.random()*100 + '%';
+    s.style.animationDelay = (Math.random()*6) + 's';
+    s.style.fontSize = (12 + Math.random()*16) + 'px';
+    s.style.color = ['#ff7eb6','#c9b6ff','#ffb27a','#ff5aa0'][Math.floor(Math.random()*4)];
+    c.appendChild(s);
+  }
+}
+
+// Wire up
+$('#composer').addEventListener('submit', e=>{
+  e.preventDefault();
+  const title = $('#title').value.trim();
+  if (!title) return;
+  addTicket(title, $('#category').value, $('#priority').value);
+  $('#title').value = '';
+  render();
+});
+
+$$('#filters .chip').forEach(c=>{
+  c.addEventListener('click', ()=>{
+    state.filter = c.dataset.filter;
+    save();
+    render();
+  });
+});
+
+$('#seedBtn').addEventListener('click', ()=>{
+  if (confirm('Reset to demo tickets? Current ones will be replaced.')){
+    seed();
+    render();
+  }
+});
+
+$('#clearDoneBtn').addEventListener('click', ()=>{
+  clearResolved();
+  render();
+});
+
+spawnSparkles();
+render();
+</script>
+</body>
+</html>
