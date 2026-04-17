@@ -183,15 +183,60 @@
     0%{opacity:1;transform:translate(0,0) rotate(0)}
     100%{opacity:0;transform:translate(var(--dx),140px) rotate(540deg)}
   }
+
+  /* View tabs */
+  .viewtabs{
+    display:flex;gap:4px;background:white;padding:6px;border-radius:999px;
+    box-shadow:var(--shadow);margin:18px auto 6px;width:fit-content;
+  }
+  .viewtabs a{
+    text-decoration:none;color:var(--ink);font-weight:500;font-size:14px;
+    padding:9px 16px;border-radius:999px;display:inline-flex;align-items:center;gap:8px;
+    transition:.15s;
+  }
+  .viewtabs a:hover:not(.active){background:var(--pink-50)}
+  .viewtabs a.active{
+    background:linear-gradient(135deg,var(--pink-300),var(--pink-400));color:white;
+    box-shadow:0 4px 12px rgba(255,126,182,.4);
+  }
+  .viewtabs .count{
+    font-size:11px;background:var(--pink-100);color:var(--pink-700);
+    padding:2px 8px;border-radius:999px;font-weight:700;
+  }
+  .viewtabs a.active .count{background:rgba(255,255,255,.35);color:white}
+
+  /* Toast */
+  .toast{
+    position:fixed;bottom:32px;left:50%;
+    background:white;color:var(--ink);padding:14px 20px;border-radius:18px;
+    box-shadow:var(--shadow-lg);font-weight:500;display:flex;align-items:center;gap:10px;
+    border:2px solid var(--pink-300);z-index:10000;max-width:90vw;
+    animation:toastIn .3s ease forwards, toastOut .35s ease 4.5s forwards;
+    transform:translate(-50%, 30px);opacity:0;
+  }
+  .toast .em{font-size:22px}
+  @keyframes toastIn{to{transform:translate(-50%,0);opacity:1}}
+  @keyframes toastOut{to{transform:translate(-50%,30px);opacity:0}}
+
+  /* Delegate button accent */
+  .actions button.delegate{
+    background:linear-gradient(135deg,#e0d4ff,#c9b6ff);
+    color:#553a9c;border-color:#c9b6ff;
+  }
+  .actions button.delegate:hover{filter:brightness(1.05)}
 </style>
 </head>
 <body>
 <div class="sparkles" id="sparkles"></div>
 <div class="wrap">
   <header class="hero">
-    <div class="badge"><span class="dot"></span>Boyfriend Support — Tier 1</div>
-    <h1>Celine IT <span class="heart">♥</span></h1>
-    <p class="tagline">your one-stop ticket queue for love & logistics ✿</p>
+    <div class="badge"><span class="dot"></span><span id="badgeText">Boyfriend Support — Tier 1</span></div>
+    <h1 id="pageTitle">Celine IT <span class="heart">♥</span></h1>
+    <p class="tagline" id="pageTagline">your one-stop ticket queue for love & logistics ✿</p>
+    <nav class="viewtabs" id="viewtabs">
+      <a href="#me"     data-view="me">🎫 Boyfriend Inbox <span class="count" id="cnt-me">0</span></a>
+      <a href="#celine" data-view="celine">🌷 For Celine <span class="count" id="cnt-celine">0</span></a>
+    </nav>
   </header>
 
   <section class="kpis">
@@ -202,7 +247,7 @@
   </section>
 
   <section class="composer">
-    <h2>📝 Submit a new ticket</h2>
+    <h2 id="composerTitle">📝 Submit a new ticket</h2>
     <form class="row" id="composer">
       <input type="text" id="title" placeholder="e.g. Refill papaya supply 🥭" required maxlength="120" />
       <select id="category">
@@ -263,23 +308,56 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const FILTER_KEY = 'celine.filter.v1';
+const MAX_OPEN_FOR_JASON = 3;
 
 const SEED = [
-  { title: "Fix the TV (HDMI input keeps switching)", category: "🛠️ Repairs",  priority: "P1" },
-  { title: "Rub her feet (post-walk recovery)",       category: "💆 Affection", priority: "P0" },
-  { title: "Take the dog on a walk",                  category: "🐶 Doggo",     priority: "P1" },
-  { title: "Eat papaya",                              category: "💆 Affection", priority: "P2" },
+  { title: "Fix the TV (HDMI input keeps switching)", category: "🛠️ Repairs",  priority: "P1", assignee: "jason" },
+  { title: "Rub her feet (post-walk recovery)",       category: "💆 Affection", priority: "P0", assignee: "jason" },
+  { title: "Take the dog on a walk",                  category: "🐶 Doggo",     priority: "P1", assignee: "jason" },
+  { title: "Eat papaya",                              category: "💆 Affection", priority: "P2", assignee: "celine" },
 ];
+
+const VIEWS = {
+  me: {
+    badge: "Boyfriend Support — Tier 1",
+    title: 'Celine IT <span class="heart">♥</span>',
+    tagline: "your one-stop ticket queue for love & logistics ✿",
+    composer: "📝 Submit a new ticket",
+    placeholder: "e.g. Refill papaya supply 🥭",
+    pageTitle: "Celine IT — Ticket Tracker",
+    delegateLabel: "↪ Delegate to Celine",
+    delegateTo: "celine",
+  },
+  celine: {
+    badge: "Princess Operations — Sprint Board",
+    title: 'For Celine <span class="heart">♥</span>',
+    tagline: "honey-dos, soft tasks, and royal duties 👑",
+    composer: "📝 Add a task for Celine",
+    placeholder: "e.g. Pick up dry cleaning 🧺",
+    pageTitle: "For Celine — Task Board",
+    delegateLabel: "↪ Send to Boyfriend",
+    delegateTo: "jason",
+  },
+};
 
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 
+function viewFromHash(){
+  const h = (location.hash || '').replace(/^#\/?/, '').toLowerCase();
+  return h === 'celine' ? 'celine' : 'me';
+}
+
 const state = {
   tickets: [],
   filter: localStorage.getItem(FILTER_KEY) || 'all',
+  view: viewFromHash(),
   loading: true,
   error: null,
 };
+
+function assigneeOf(t){ return t.assignee || 'jason'; }
+function viewAssignee(view){ return view === 'celine' ? 'celine' : 'jason'; }
 
 const ticketsCol = collection(db, 'tickets');
 const counterRef = doc(db, 'meta', 'counter');
@@ -310,19 +388,24 @@ async function maybeSeed(){
   });
   if (shouldSeed){
     for (const s of SEED){
-      await addTicket(s.title, s.category, s.priority);
+      await addTicket(s.title, s.category, s.priority, s.assignee || 'jason');
     }
   }
 }
 
-async function addTicket(title, category, priority){
+async function addTicket(title, category, priority, assignee='jason'){
   const num = await nextTicketNum();
   await addDoc(ticketsCol, {
     ticketNum: num,
     title, category, priority,
     status: 'open',
+    assignee,
     createdAt: serverTimestamp(),
   });
+}
+
+async function delegate(id, to){
+  await updateDoc(doc(db, 'tickets', id), { assignee: to });
 }
 
 async function setStatus(id, status){
@@ -361,10 +444,30 @@ onSnapshot(
 );
 
 function render(){
-  // KPIs
-  const open = state.tickets.filter(t=>t.status==='open').length;
-  const prog = state.tickets.filter(t=>t.status==='in-progress').length;
-  const done = state.tickets.filter(t=>t.status==='resolved').length;
+  const v = VIEWS[state.view];
+
+  // Header / page chrome swaps with view
+  $('#badgeText').textContent = v.badge;
+  $('#pageTitle').innerHTML = v.title;
+  $('#pageTagline').textContent = v.tagline;
+  $('#composerTitle').textContent = v.composer;
+  $('#title').placeholder = v.placeholder;
+  document.title = v.pageTitle;
+
+  // Tab active state + counts (count = OPEN tickets per side)
+  const meOpen     = state.tickets.filter(t => assigneeOf(t)==='jason'  && t.status==='open').length;
+  const celineOpen = state.tickets.filter(t => assigneeOf(t)==='celine' && t.status==='open').length;
+  $('#cnt-me').textContent = meOpen;
+  $('#cnt-celine').textContent = celineOpen;
+  $$('#viewtabs a').forEach(a => a.classList.toggle('active', a.dataset.view === state.view));
+
+  // Tickets visible on this view
+  const here = state.tickets.filter(t => assigneeOf(t) === viewAssignee(state.view));
+
+  // KPIs scoped to current view
+  const open = here.filter(t=>t.status==='open').length;
+  const prog = here.filter(t=>t.status==='in-progress').length;
+  const done = here.filter(t=>t.status==='resolved').length;
   $('#kpi-open').textContent = open;
   $('#kpi-progress').textContent = prog;
   $('#kpi-done').textContent = done;
@@ -396,7 +499,7 @@ function render(){
     return;
   }
 
-  const view = state.tickets.filter(t=>{
+  const view = here.filter(t=>{
     if (state.filter === 'all') return true;
     return t.status === state.filter;
   });
@@ -455,6 +558,11 @@ function render(){
         else if (act==='start'){ await setStatus(id,'in-progress'); }
         else if (act==='resolve'){ await setStatus(id,'resolved'); }
         else if (act==='reopen'){ await setStatus(id,'open'); }
+        else if (act==='delegate'){
+          const to = b.dataset.to;
+          await delegate(id, to);
+          toast(`✨ Delegated! It's on ${to === 'celine' ? "Celine's" : "Jason's"} plate now.`);
+        }
       } catch(e){ alert('Error: ' + e.message); }
       finally { b.disabled = false; }
     });
@@ -462,12 +570,18 @@ function render(){
 }
 
 function actionsFor(t){
+  const v = VIEWS[state.view];
+  const delegateBtn = t.status === 'resolved'
+    ? ''
+    : `<button class="delegate" data-act="delegate" data-id="${t._id}" data-to="${v.delegateTo}">${v.delegateLabel}</button>`;
   if (t.status==='open') return `
     <button data-act="start" data-id="${t._id}">⚡ Start</button>
-    <button class="primary" data-act="resolve" data-id="${t._id}">✅ Resolve</button>`;
+    <button class="primary" data-act="resolve" data-id="${t._id}">✅ Resolve</button>
+    ${delegateBtn}`;
   if (t.status==='in-progress') return `
     <button class="primary" data-act="resolve" data-id="${t._id}">✅ Resolve</button>
-    <button data-act="reopen" data-id="${t._id}">↩︎ Reopen</button>`;
+    <button data-act="reopen" data-id="${t._id}">↩︎ Reopen</button>
+    ${delegateBtn}`;
   return `<button data-act="reopen" data-id="${t._id}">↩︎ Reopen</button>`;
 }
 
@@ -493,6 +607,14 @@ function confettiBurst(){
   }
 }
 
+function toast(msg, opts={}){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span class="em">${opts.emoji || '✨'}</span><span>${escapeHtml(msg)}</span>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 5200);
+}
+
 function spawnSparkles(){
   const c = $('#sparkles');
   const items = ['✿','✦','✧','♡','✩','❀'];
@@ -516,11 +638,44 @@ composer.addEventListener('submit', async (e)=>{
   e.preventDefault();
   const title = $('#title').value.trim();
   if (!title) return;
+
+  const target = viewAssignee(state.view);
+
+  // Cap: Celine can't pile up too many open tickets on Boyfriend.
+  if (target === 'jason'){
+    const openForJason = state.tickets.filter(t =>
+      assigneeOf(t) === 'jason' && t.status !== 'resolved'
+    ).length;
+    if (openForJason >= MAX_OPEN_FOR_JASON){
+      submitBtn.disabled = true;
+      const orig = submitBtn.textContent;
+      submitBtn.textContent = 'Hold up…';
+      try {
+        toast('🍺 Buy boyfriend beer — too many open tickets! Resolve some first.', {emoji:'🍺'});
+        // Auto-fire ONE beer ticket onto Celine's queue (idempotent).
+        const beerExists = state.tickets.some(t =>
+          assigneeOf(t) === 'celine'
+          && t.status !== 'resolved'
+          && /buy boyfriend beer/i.test(t.title || '')
+        );
+        if (!beerExists){
+          await addTicket("Buy boyfriend beer 🍺", "💝 Surprise", "P0", "celine");
+        }
+      } catch(err){
+        console.warn('beer ticket failed', err);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = orig;
+      }
+      return;
+    }
+  }
+
   submitBtn.disabled = true;
   const orig = submitBtn.textContent;
   submitBtn.textContent = 'Filing…';
   try {
-    await addTicket(title, $('#category').value, $('#priority').value);
+    await addTicket(title, $('#category').value, $('#priority').value, target);
     $('#title').value = '';
   } catch(err){
     alert('Could not file ticket: ' + err.message);
@@ -528,6 +683,18 @@ composer.addEventListener('submit', async (e)=>{
     submitBtn.disabled = false;
     submitBtn.textContent = orig;
   }
+});
+
+// View tab navigation
+$$('#viewtabs a').forEach(a=>{
+  a.addEventListener('click', (e)=>{
+    e.preventDefault();
+    location.hash = a.dataset.view;
+  });
+});
+window.addEventListener('hashchange', ()=>{
+  state.view = viewFromHash();
+  render();
 });
 
 $$('#filters .chip').forEach(c=>{
