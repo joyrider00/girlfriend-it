@@ -242,84 +242,123 @@
   <footer>made with ♥ — your devoted on-call engineer</footer>
 </div>
 
-<script>
-const STORAGE_KEY = 'gfit.tickets.v1';
-const COUNTER_KEY = 'gfit.counter.v1';
-const FILTER_KEY  = 'gfit.filter.v1';
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import {
+  getFirestore, collection, doc, addDoc, deleteDoc, updateDoc,
+  onSnapshot, query, orderBy, runTransaction, writeBatch, getDocs,
+  where, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCKStOHowXoy9EXEAuA-W1TkK-K7NLqxhY",
+  authDomain: "celine-it.firebaseapp.com",
+  projectId: "celine-it",
+  storageBucket: "celine-it.firebasestorage.app",
+  messagingSenderId: "643602398311",
+  appId: "1:643602398311:web:4a3cdb28c5034e063fe8c2",
+  measurementId: "G-5M8DJL69KY"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const FILTER_KEY = 'celine.filter.v1';
 
 const SEED = [
-  { title: "Fix the TV (HDMI input keeps switching)", category: "🛠️ Repairs", priority: "P1" },
+  { title: "Fix the TV (HDMI input keeps switching)", category: "🛠️ Repairs",  priority: "P1" },
   { title: "Rub her feet (post-walk recovery)",       category: "💆 Affection", priority: "P0" },
-  { title: "Take the dog on a walk",                  category: "🐶 Doggo",    priority: "P1" },
+  { title: "Take the dog on a walk",                  category: "🐶 Doggo",     priority: "P1" },
   { title: "Eat papaya",                              category: "💆 Affection", priority: "P2" },
 ];
 
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
 
-let state = {
-  tickets: load(),
-  counter: parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10),
+const state = {
+  tickets: [],
   filter: localStorage.getItem(FILTER_KEY) || 'all',
+  loading: true,
+  error: null,
 };
 
-if (state.tickets.length === 0) seed();
+const ticketsCol = collection(db, 'tickets');
+const counterRef = doc(db, 'meta', 'counter');
 
-function load(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
-function save(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.tickets));
-  localStorage.setItem(COUNTER_KEY, String(state.counter));
-  localStorage.setItem(FILTER_KEY, state.filter);
-}
-function nextId(){ state.counter += 1; return 'GF-' + String(state.counter).padStart(4,'0'); }
 function fmtDate(ts){
-  const d = new Date(ts);
+  if (!ts) return 'just now';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
 }
 
-function seed(){
-  state.tickets = [];
-  state.counter = 0;
-  for (const s of SEED){
-    state.tickets.push({
-      id: nextId(),
-      title: s.title,
-      category: s.category,
-      priority: s.priority,
-      status: 'open',
-      createdAt: Date.now() - Math.floor(Math.random()*86400000*3),
-    });
-  }
-  save();
+async function nextTicketNum(){
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const cur = snap.exists() ? (snap.data().value || 0) : 0;
+    const next = cur + 1;
+    tx.set(counterRef, { value: next }, { merge: true });
+    return next;
+  });
 }
 
-function addTicket(title, category, priority){
-  state.tickets.unshift({
-    id: nextId(),
+async function maybeSeed(){
+  // Only one client wins the seed race via transaction.
+  const shouldSeed = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    if (snap.exists() && snap.data().seeded) return false;
+    tx.set(counterRef, { value: 0, seeded: true }, { merge: true });
+    return true;
+  });
+  if (shouldSeed){
+    for (const s of SEED){
+      await addTicket(s.title, s.category, s.priority);
+    }
+  }
+}
+
+async function addTicket(title, category, priority){
+  const num = await nextTicketNum();
+  await addDoc(ticketsCol, {
+    ticketNum: num,
     title, category, priority,
     status: 'open',
-    createdAt: Date.now(),
+    createdAt: serverTimestamp(),
   });
-  save();
 }
 
-function setStatus(id, status){
-  const t = state.tickets.find(x=>x.id===id);
-  if (!t) return;
-  t.status = status;
-  save();
+async function setStatus(id, status){
+  await updateDoc(doc(db, 'tickets', id), { status });
   if (status === 'resolved') confettiBurst();
 }
 
-function delTicket(id){
-  state.tickets = state.tickets.filter(x=>x.id!==id);
-  save();
+async function delTicket(id){
+  await deleteDoc(doc(db, 'tickets', id));
 }
 
-function clearResolved(){
-  state.tickets = state.tickets.filter(x=>x.status!=='resolved');
-  save();
+async function clearResolved(){
+  const snap = await getDocs(query(ticketsCol, where('status','==','resolved')));
+  const batch = writeBatch(db);
+  snap.forEach(d => batch.delete(d.ref));
+  await batch.commit();
 }
+
+// Real-time subscription — every device sees the same tickets, live.
+onSnapshot(
+  query(ticketsCol, orderBy('createdAt','desc')),
+  async (snap) => {
+    state.tickets = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    state.loading = false;
+    state.error = null;
+    render();
+    if (state.tickets.length === 0){
+      try { await maybeSeed(); } catch(e){ console.warn('seed failed', e); }
+    }
+  },
+  (err) => {
+    state.loading = false;
+    state.error = err.message || String(err);
+    render();
+  }
+);
 
 function render(){
   // KPIs
@@ -338,6 +377,25 @@ function render(){
   // Tickets
   const cont = $('#tickets');
   cont.innerHTML = '';
+
+  if (state.error){
+    cont.innerHTML = `<div class="empty">
+      <div class="big">😿</div>
+      <p>Couldn't reach the database.</p>
+      <p style="font-family:monospace;font-size:13px;opacity:.7;margin-top:8px">${escapeHtml(state.error)}</p>
+      <p style="font-size:14px;opacity:.7;margin-top:8px">If this is the first run, make sure Firestore is enabled in test mode at console.firebase.google.com.</p>
+    </div>`;
+    return;
+  }
+
+  if (state.loading){
+    cont.innerHTML = `<div class="empty">
+      <div class="big">🌷</div>
+      <p>Loading tickets…</p>
+    </div>`;
+    return;
+  }
+
   const view = state.tickets.filter(t=>{
     if (state.filter === 'all') return true;
     return t.status === state.filter;
@@ -357,16 +415,19 @@ function render(){
   view.sort((a,b)=>{
     if (order[a.status] !== order[b.status]) return order[a.status]-order[b.status];
     if (prio[a.priority] !== prio[b.priority]) return prio[a.priority]-prio[b.priority];
-    return b.createdAt - a.createdAt;
+    const ams = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bms = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bms - ams;
   });
 
   for (const t of view){
+    const displayId = 'CL-' + String(t.ticketNum || 0).padStart(4,'0');
     const el = document.createElement('article');
     el.className = `ticket ${t.priority.toLowerCase()} ${t.status==='resolved'?'done':''}`;
     el.innerHTML = `
       <div class="t-head">
         <h3 class="title">${escapeHtml(t.title)}</h3>
-        <span class="id">${t.id}</span>
+        <span class="id">${displayId}</span>
       </div>
       <div class="pills">
         <span class="pill cat">${escapeHtml(t.category)}</span>
@@ -378,32 +439,36 @@ function render(){
       </div>
       <div class="actions">
         ${actionsFor(t)}
-        <button class="del" data-act="del" data-id="${t.id}">🗑️ Delete</button>
+        <button class="del" data-act="del" data-id="${t._id}">🗑️ Delete</button>
       </div>
     `;
     cont.appendChild(el);
   }
 
   cont.querySelectorAll('button[data-act]').forEach(b=>{
-    b.addEventListener('click', ()=>{
+    b.addEventListener('click', async ()=>{
       const id = b.dataset.id;
       const act = b.dataset.act;
-      if (act==='del'){ delTicket(id); render(); }
-      else if (act==='start'){ setStatus(id,'in-progress'); render(); }
-      else if (act==='resolve'){ setStatus(id,'resolved'); render(); }
-      else if (act==='reopen'){ setStatus(id,'open'); render(); }
+      b.disabled = true;
+      try {
+        if (act==='del'){ if (confirm('Delete this ticket?')) await delTicket(id); }
+        else if (act==='start'){ await setStatus(id,'in-progress'); }
+        else if (act==='resolve'){ await setStatus(id,'resolved'); }
+        else if (act==='reopen'){ await setStatus(id,'open'); }
+      } catch(e){ alert('Error: ' + e.message); }
+      finally { b.disabled = false; }
     });
   });
 }
 
 function actionsFor(t){
   if (t.status==='open') return `
-    <button data-act="start" data-id="${t.id}">⚡ Start</button>
-    <button class="primary" data-act="resolve" data-id="${t.id}">✅ Resolve</button>`;
+    <button data-act="start" data-id="${t._id}">⚡ Start</button>
+    <button class="primary" data-act="resolve" data-id="${t._id}">✅ Resolve</button>`;
   if (t.status==='in-progress') return `
-    <button class="primary" data-act="resolve" data-id="${t.id}">✅ Resolve</button>
-    <button data-act="reopen" data-id="${t.id}">↩︎ Reopen</button>`;
-  return `<button data-act="reopen" data-id="${t.id}">↩︎ Reopen</button>`;
+    <button class="primary" data-act="resolve" data-id="${t._id}">✅ Resolve</button>
+    <button data-act="reopen" data-id="${t._id}">↩︎ Reopen</button>`;
+  return `<button data-act="reopen" data-id="${t._id}">↩︎ Reopen</button>`;
 }
 
 function labelStatus(s){
@@ -445,33 +510,47 @@ function spawnSparkles(){
 }
 
 // Wire up
-$('#composer').addEventListener('submit', e=>{
+const composer = $('#composer');
+const submitBtn = composer.querySelector('button.add');
+composer.addEventListener('submit', async (e)=>{
   e.preventDefault();
   const title = $('#title').value.trim();
   if (!title) return;
-  addTicket(title, $('#category').value, $('#priority').value);
-  $('#title').value = '';
-  render();
+  submitBtn.disabled = true;
+  const orig = submitBtn.textContent;
+  submitBtn.textContent = 'Filing…';
+  try {
+    await addTicket(title, $('#category').value, $('#priority').value);
+    $('#title').value = '';
+  } catch(err){
+    alert('Could not file ticket: ' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = orig;
+  }
 });
 
 $$('#filters .chip').forEach(c=>{
   c.addEventListener('click', ()=>{
     state.filter = c.dataset.filter;
-    save();
+    localStorage.setItem(FILTER_KEY, state.filter);
     render();
   });
 });
 
-$('#seedBtn').addEventListener('click', ()=>{
-  if (confirm('Reset to demo tickets? Current ones will be replaced.')){
-    seed();
-    render();
+$('#seedBtn').addEventListener('click', async ()=>{
+  if (state.tickets.length > 0){
+    alert('Seed only runs when the ticket list is empty (so it never overwrites real tickets).');
+    return;
   }
+  try { await maybeSeed(); }
+  catch(e){ alert('Seed failed: ' + e.message); }
 });
 
-$('#clearDoneBtn').addEventListener('click', ()=>{
-  clearResolved();
-  render();
+$('#clearDoneBtn').addEventListener('click', async ()=>{
+  if (!confirm('Clear all resolved tickets? This affects everyone.')) return;
+  try { await clearResolved(); }
+  catch(e){ alert('Clear failed: ' + e.message); }
 });
 
 spawnSparkles();
